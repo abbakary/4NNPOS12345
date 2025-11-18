@@ -621,14 +621,14 @@ def parse_item_multiline(all_lines, start_idx):
     unit = None
     numbers = []
 
-    # Extract item code (sequence of digits at start)
-    code_match = re.match(r'^(\d{6,15})\s+', rest_of_line)
+    # Extract item code (sequence of 6+ digits at start, or alphanumeric code)
+    code_match = re.match(r'^(\d{6,15}|[A-Z0-9]{3,15})\s+', rest_of_line)
     if code_match:
         item_code = code_match.group(1)
         rest_of_line = rest_of_line[len(code_match.group(0)):].strip()
 
     # Find unit type in the line
-    unit_keywords = r'\b(PCS|NOS|KG|HR|LTR|PIECES|UNITS?|KIT|BOX|CASE|SETS?|PC|UNT|KTS|BAG|BUNDLE|PACK|CYLINDER|LITRE|TYRE|TIRE|TL|LT|NOS)\b'
+    unit_keywords = r'\b(PCS|NOS|KG|HR|LTR|PIECES|UNITS?|KIT|BOX|CASE|SETS?|PC|UNT|KTS|BAG|BUNDLE|PACK|CYLINDER|LITRE|TYRE|TIRE|TL|LT)\b'
     unit_match = re.search(unit_keywords, rest_of_line, re.I)
 
     # Extract all numbers from the line
@@ -657,24 +657,36 @@ def parse_item_multiline(all_lines, start_idx):
     while next_idx < len(all_lines):
         next_line = all_lines[next_idx]
 
-        # Stop if we hit another Sr No (next item)
+        # Stop if we hit another Sr No (next item) - this is KEY
         if re.match(r'^(\d{1,2})\s+', next_line):
             break
 
-        # Stop if we hit a summary line
-        if re.search(r'(Net\s*Value|Gross\s*Value|Grand\s*Total|Total\s*:|Page\s*\d+|Existing\s*Customer|Customer\s*Information)', next_line, re.I):
+        # Stop if we hit a summary line or section marker
+        if re.search(r'(Net\s*Value|Gross\s*Value|Grand\s*Total|Total\s*:|Page\s*\d+|Existing\s*Customer|Customer\s*Information|Invoice\s*Date|Date)', next_line, re.I):
             break
 
         # Stop if we hit a blank or header-like line
-        if not next_line.strip() or re.search(r'^\s*(?:Sr|Item|Code|Description|Type|Qty|Rate|Value|Unit|Price|Amount|#)\s*$', next_line, re.I):
+        if not next_line.strip() or re.search(r'^\s*(?:Sr|S\.N|Item|Code|Description|Type|Qty|Rate|Value|Unit|Price|Amount|#)\s*$', next_line, re.I):
             break
 
-        # This is a continuation line - add to description
+        # CONSERVATIVE APPROACH: Only add if line looks like description (not a number/quantity line)
+        # Check if the entire line is mostly text (not just numbers and units)
+        stripped = next_line.strip()
+
+        # Don't add lines that start with a number followed by unit (like "4 1,037,400.00")
+        if re.match(r'^\d+\s+[\d\,\.]+', stripped):
+            break
+
+        # Don't add lines that are just percentages or decimals
+        if re.match(r'^[\d\.\%]+$', stripped):
+            break
+
+        # This looks like a real description continuation - add it
         description_parts.append(next_line)
         lines_consumed += 1
         next_idx += 1
 
-    # Combine multi-line description
+    # Combine multi-line description and limit length
     full_description = ' '.join(filter(None, description_parts)).strip()
     full_description = re.sub(r'\s+', ' ', full_description)[:255]
 
@@ -691,24 +703,28 @@ def parse_item_multiline(all_lines, start_idx):
         'value': None
     }
 
-    # Assign numbers intelligently
+    # Assign numbers intelligently - be more careful about which is qty vs rate
     if len(numbers) == 1:
+        # Single number - likely the value/amount
         item['value'] = Decimal(str(numbers[0]))
     elif len(numbers) == 2:
-        # Try to detect which is qty and which is value
-        if numbers[0] == int(numbers[0]) and 0 < numbers[0] < 1000:
+        # Two numbers - first is qty, second is value (or vice versa)
+        # Try to detect: if first is small integer (1-999), it's qty
+        if numbers[0] == int(numbers[0]) and 0 < numbers[0] < 1000 and numbers[1] > numbers[0]:
             item['qty'] = int(numbers[0])
             item['value'] = Decimal(str(numbers[1]))
         else:
+            # Otherwise assume the larger is value
             item['value'] = Decimal(str(max(numbers)))
     elif len(numbers) >= 3:
-        # Find qty (small integer not equal to max)
+        # Multiple numbers - typically: code, qty, rate, value
+        # Try to find qty: should be a small integer
         qty_candidate = None
         max_num = max(numbers)
 
-        # Look for a number that's an integer between 1 and 1000
+        # Look for the first reasonable qty (small integer, not the max value)
         for num in numbers:
-            if num == int(num) and 0 < num < 1000 and num != max_num:
+            if num == int(num) and 0 < num < 1000 and num < max_num:
                 qty_candidate = int(num)
                 break
 
@@ -716,7 +732,7 @@ def parse_item_multiline(all_lines, start_idx):
             item['qty'] = qty_candidate
             item['value'] = Decimal(str(max_num))
             # Calculate rate if we have qty and value
-            if qty_candidate > 0:
+            if qty_candidate > 0 and max_num > 0:
                 item['rate'] = Decimal(str(max_num / qty_candidate))
         else:
             # No clear qty found, assume last number is value
