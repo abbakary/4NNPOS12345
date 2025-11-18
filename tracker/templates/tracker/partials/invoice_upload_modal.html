@@ -453,58 +453,63 @@
   }
 
   function populateFormFields(header) {
-    const fieldMap = {
-      'invoice_number': 'invoice_no',
-      'code_no': 'code_no',
-      'reference': 'reference'
-    };
+    const customerName = header.customer_name || '';
+    const customerPhone = header.phone || '';
+    const customerEmail = header.email || '';
+    const customerAddress = header.address || '';
+    const invoiceNumber = header.invoice_no || '';
+    const invoiceDate = header.date || '';
+    const subtotal = header.subtotal || 0;
+    const tax = header.tax || 0;
+    const total = header.total || 0;
 
-    Object.keys(fieldMap).forEach(fieldName => {
-      const inp = invoiceForm.querySelector(`[name="${fieldName}"]`);
-      if (inp) {
-        const value = header[fieldMap[fieldName]] || '';
-        inp.value = value;
+    const fields = [
+      { name: 'customer_name', value: customerName },
+      { name: 'customer_phone', value: customerPhone },
+      { name: 'customer_email', value: customerEmail },
+      { name: 'customer_address', value: customerAddress },
+      { name: 'invoice_number', value: invoiceNumber },
+      { name: 'invoice_date', value: formatDateForForm(invoiceDate) },
+      { name: 'subtotal', value: subtotal },
+      { name: 'tax_amount', value: tax },
+      { name: 'total_amount', value: total },
+      { name: 'code_no', value: header.code_no || '' },
+      { name: 'reference', value: header.reference || '' }
+    ];
+
+    fields.forEach(field => {
+      let inp = invoiceForm.querySelector(`[name="${field.name}"]`);
+      if (!inp) {
+        inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = field.name;
+        hiddenFieldsDiv.appendChild(inp);
       }
+      inp.value = field.value;
     });
-
-    const addressInput = invoiceForm.querySelector('[name="customer_address"]');
-    if (addressInput) {
-      addressInput.value = header.address || '';
-    }
-
-    const emailInput = invoiceForm.querySelector('[name="customer_email"]');
-    if (emailInput) {
-      emailInput.value = header.email || '';
-    }
-
-    const dateInput = invoiceForm.querySelector('[name="invoice_date"]');
-    if (dateInput && header.date) {
-      let formattedDate = header.date;
-      const dateMatch = String(header.date).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-      if (dateMatch) {
-        formattedDate = dateMatch[3] + '-' + String(dateMatch[2]).padStart(2, '0') + '-' + String(dateMatch[1]).padStart(2, '0');
-      }
-      dateInput.value = formattedDate;
-    }
-
-    const subtotalInput = invoiceForm.querySelector('[name="subtotal"]');
-    const taxInput = invoiceForm.querySelector('[name="tax_amount"]');
-    const totalInput = invoiceForm.querySelector('[name="total_amount"]');
-
-    if (subtotalInput) subtotalInput.value = header.subtotal || 0;
-    if (taxInput) taxInput.value = header.tax || 0;
-    if (totalInput) totalInput.value = header.total || 0;
 
     const sellerKeys = ['seller_name', 'seller_address', 'seller_phone', 'seller_email', 'seller_tax_id', 'seller_vat_reg'];
     sellerKeys.forEach(key => {
       if (header[key]) {
-        const inp = document.createElement('input');
-        inp.type = 'hidden';
-        inp.name = key;
+        let inp = invoiceForm.querySelector(`[name="${key}"]`);
+        if (!inp) {
+          inp = document.createElement('input');
+          inp.type = 'hidden';
+          inp.name = key;
+          hiddenFieldsDiv.appendChild(inp);
+        }
         inp.value = header[key];
-        hiddenFieldsDiv.appendChild(inp);
       }
     });
+  }
+
+  function formatDateForForm(dateStr) {
+    if (!dateStr) return '';
+    const dateMatch = String(dateStr).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (dateMatch) {
+      return dateMatch[3] + '-' + String(dateMatch[2]).padStart(2, '0') + '-' + String(dateMatch[1]).padStart(2, '0');
+    }
+    return dateStr;
   }
 })();
 </script>
