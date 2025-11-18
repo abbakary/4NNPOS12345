@@ -461,8 +461,9 @@ def parse_invoice_data(text: str) -> dict:
     tax = to_decimal(find_amount([r'VAT', r'Tax', r'GST']))
     total = to_decimal(find_amount([r'Gross\s*Value', r'Grand\s*Total', r'Total\s*Amount']))
 
-    # Extract line items
-    items = extract_line_items_from_text(normalized_text)
+    # Extract line items (use text starting from Proforma Invoice onwards)
+    extraction_text = '\n'.join(extraction_lines)
+    items = extract_line_items_from_text(extraction_text)
 
     # Extract additional fields
     payment_method = extract_field_value([r'Payment', r'Payment\s*Method'])
