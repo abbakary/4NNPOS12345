@@ -330,18 +330,6 @@
                     </div>
                   </div>
 
-                  {% if order.started_at %}
-                  <div class="timeline-event-item">
-                    <div class="event-marker started">
-                      <i class="fa fa-play-circle"></i>
-                    </div>
-                    <div class="event-details">
-                      <div class="event-label">Started</div>
-                      <div class="event-time">{{ order.started_at|localtime|date:"M j, Y g:i a" }}</div>
-                    </div>
-                  </div>
-                  {% endif %}
-
                   {% if order.completed_at %}
                   <div class="timeline-event-item">
                     <div class="event-marker completed">
