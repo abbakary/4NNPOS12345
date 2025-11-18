@@ -222,12 +222,22 @@
             <div class="card-body">
               <div class="row mb-2">
                 <div class="col-md-6">
-                  <label class="form-label fw-bold">Invoice Number</label>
-                  <input type="text" name="invoice_number" class="form-control" placeholder="e.g., INV-001">
+                  <label class="form-label fw-bold">Invoice Number / PI No</label>
+                  <input type="text" name="invoice_number" class="form-control" id="invoiceNumberField" placeholder="e.g., INV-001 or PI-1765632">
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-bold">Invoice Date</label>
                   <input type="date" name="invoice_date" class="form-control" value="{% now 'Y-m-d' %}" required>
+                </div>
+              </div>
+              <div class="row mb-2">
+                <div class="col-md-6">
+                  <label class="form-label">Code No. <small class="text-muted">(optional)</small></label>
+                  <input type="text" name="code_no" class="form-control" id="codeNoField" placeholder="e.g., A01696">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Reference <small class="text-muted">(optional)</small></label>
+                  <input type="text" name="reference" class="form-control" id="referenceField" placeholder="e.g., T 211 EDF">
                 </div>
               </div>
             </div>
