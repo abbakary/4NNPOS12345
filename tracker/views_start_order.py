@@ -117,14 +117,14 @@ def api_start_order(request):
                 try:
                     name_src = plate_number or f"Customer {timezone.now().strftime('%Y%m%d%H%M')}"
                     phone_src = plate_number and f"PLATE_{plate_number}" or None
-                    customer, _ = CustomerService.create_or_get_customer(
+                    customer, customer_created = CustomerService.create_or_get_customer(
                         branch=user_branch,
                         full_name=f"Plate {name_src}" if plate_number else name_src,
                         phone=phone_src,
                         customer_type='personal',
                     )
                 except Exception:
-                    customer, _ = Customer.objects.get_or_create(
+                    customer, customer_created = Customer.objects.get_or_create(
                         branch=user_branch,
                         full_name=f"Plate {plate_number}" if plate_number else f"Customer {timezone.now().strftime('%Y%m%d%H%M')}",
                         phone=(f"PLATE_{plate_number}" if plate_number else None),
@@ -176,19 +176,19 @@ def api_start_order(request):
                 if vehicle:
                     existing_order = Order.objects.filter(
                         vehicle=vehicle,
-                        status='in_progress'
+                        status__in=['in_progress', 'overdue']
                     ).order_by('-started_at').first()
 
                 if existing_order:
                     order = existing_order
                 else:
                     # Create new order as 'created' (started state). It will auto-progress to 'in_progress' after 10 minutes.
-                    order = Order.objects.create(
+                    # Use OrderService to ensure proper visit tracking
+                    order = OrderService.create_order(
                         customer=customer,
-                        vehicle=vehicle,
+                        order_type=order_type,
                         branch=user_branch,
-                        type=order_type,
-                        status='created',
+                        vehicle=vehicle,
                         description=desc,
                         priority='medium',
                         estimated_duration=estimated_duration if estimated_duration else None,
@@ -975,14 +975,12 @@ def api_create_order_from_modal(request):
             except (ValueError, TypeError):
                 est_duration = None
 
-            # Create order
-            order = Order.objects.create(
+            # Create order using OrderService to ensure proper visit tracking
+            order = OrderService.create_order(
                 customer=customer,
-                vehicle=vehicle,
+                order_type=order_type,
                 branch=user_branch,
-                type=order_type,
-                status='created',
-                started_at=None,  # Will be set to created_at when auto-progressed after 10 minutes
+                vehicle=vehicle,
                 description=description or f"Order for {customer.full_name}",
                 priority=priority if priority in ['low', 'medium', 'high', 'urgent'] else 'medium',
                 estimated_duration=est_duration,
