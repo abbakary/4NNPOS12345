@@ -567,6 +567,39 @@ def parse_item_complete(item_lines, item_number):
         rate = Decimal(matches_basic[1].group(2).replace(',', ''))
         value = Decimal(matches_basic[2].group(2).replace(',', ''))
         logger.info(f"Basic pattern match with Value - Code: {item_code}, Qty: {qty}, Rate: {rate}, Value: {value} (extracted as-is)")
+
+        # Extract unit
+        unit = None
+        unit_match = re.search(r'\b(PCS|NOS|KG|HR|LTR|PC|UNT|BOX|SET|UNIT|PIECES|TYRE|TIRE)\b', full_text, re.I)
+        if unit_match:
+            unit = unit_match.group(1).upper()
+
+        # Build description by removing numbers, units, and codes
+        description = full_text
+
+        # Remove item code
+        if item_code and item_code in description:
+            description = description.replace(item_code, '', 1).strip()
+
+        # Remove quantities and rates
+        for match in reversed(matches_basic[:3]):  # Only remove first 3 matches
+            description = description.replace(match.group(0), '', 1).strip()
+
+        # Remove unit
+        if unit:
+            description = re.sub(r'\b' + re.escape(unit) + r'\b', '', description, flags=re.I).strip()
+
+        # Remove percentages and other noise
+        description = re.sub(r'\d+\.?\d*\%', '', description).strip()
+
+        return {
+            'code': item_code,
+            'description': clean_description(description),
+            'unit': unit,
+            'qty': qty,
+            'rate': rate,
+            'value': value
+        }
     elif len(matches_basic) >= 2:
         # Only qty and rate found - don't calculate value
         qty = int(matches_basic[0].group(1))
