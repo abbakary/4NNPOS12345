@@ -354,8 +354,8 @@ def parse_invoice_data(text: str) -> dict:
     except Exception:
         pass
 
-    # Helper function to extract field values (use extraction_lines that start from Proforma Invoice)
-    def extract_field_value(label_patterns, max_lines=3):
+    # Helper function to extract field values with improved cleaning
+    def extract_field_value(label_patterns, max_lines=3, clean_dates=True):
         patterns = label_patterns if isinstance(label_patterns, list) else [label_patterns]
 
         for pattern in patterns:
@@ -367,77 +367,123 @@ def parse_invoice_data(text: str) -> dict:
                     if match:
                         value = match.group(1).strip()
                         if value:
-                            return value
+                            # Clean dates from value if requested
+                            if clean_dates:
+                                value = re.sub(r'\s*Date\s*[:=]?\s*\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}.*$', '', value, flags=re.I).strip()
+                            return value if value else None
 
                     # Look in next lines
                     for j in range(1, min(max_lines + 1, len(extraction_lines) - i)):
                         next_line = extraction_lines[i + j].strip()
-                        if next_line and not re.match(r'^(?:Tel|Fax|Email|Address|Reference|PI|Date)', next_line, re.I):
-                            return next_line
+                        if next_line and not re.match(r'^(?:Tel|Fax|Email|Address|Reference|PI|Date|Code|Cust|Ref|Del|Page)', next_line, re.I):
+                            # Clean dates from next line if requested
+                            if clean_dates:
+                                next_line = re.sub(r'\s*Date\s*[:=]?\s*\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}.*$', '', next_line, flags=re.I).strip()
+                            return next_line if next_line else None
         return None
 
-    # Extract Code No
-    code_no = extract_field_value([
-        r'Code\s*No',
-        r'Code\s*#',
-        r'^Code\b'
-    ])
+    # Extract Code No - look for pattern with optional tabs/spaces
+    code_no = None
+    for line in extraction_lines:
+        # Match "Code No" or "Code" followed by a colon and value
+        match = re.search(r'(?:Code\s*(?:No|Number)?|Code\s*#)\s*[\t:]?\s*([A-Z0-9]{2,20})', line, re.I)
+        if match:
+            code_no = match.group(1).strip()
+            # Filter out likely non-codes (dates, labels)
+            if not re.match(r'^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$', code_no):
+                break
+            code_no = None
 
     # Extract Invoice No (PI No)
-    invoice_no = extract_field_value([
-        r'PI\s*No',
-        r'Proforma\s*Invoice',
-        r'Invoice\s*No',
-        r'^PI\b'
-    ])
+    invoice_no = None
+    for line in extraction_lines:
+        match = re.search(r'(?:PI|Invoice)\s*(?:No|Number|#|\.)\s*[\t:]?\s*([A-Z0-9\-]{3,30})', line, re.I)
+        if match:
+            invoice_no = match.group(1).strip()
+            if invoice_no and len(invoice_no) > 1:
+                break
+            invoice_no = None
 
-    # Extract Customer Name
-    customer_name = extract_field_value([
-        r'Customer\s*Name',
-        r'Bill\s*To',
-        r'Sold\s*To'
-    ])
+    # Extract Customer Name - look for the value after "Customer Name" label
+    customer_name = None
+    for i, line in enumerate(extraction_lines):
+        if re.search(r'Customer\s*Name', line, re.I):
+            # Try to extract from same line first
+            match = re.search(r'Customer\s*Name\s*[\t:]?\s*(.+?)(?:\s+Date|$)', line, re.I)
+            if match:
+                customer_name = match.group(1).strip()
+                if customer_name and not re.match(r'^\d{1,2}[/-]', customer_name):
+                    break
+            # If not in same line, check next line
+            elif i + 1 < len(extraction_lines):
+                next_line = extraction_lines[i + 1].strip()
+                if next_line and not re.match(r'^(?:Tel|Fax|Email|Phone|Address|Date)', next_line, re.I):
+                    customer_name = next_line
+                    break
+            customer_name = None
 
-    # Extract Date
+    # Extract Date - look for date pattern
     date_str = None
     for line in extraction_lines:
-        date_match = re.search(r'(?:Date|Invoice\s*Date)\s*[:=]?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})', line, re.I)
-        if date_match:
-            date_str = date_match.group(1)
+        match = re.search(r'(?:Date|Invoice\s*Date)\s*[\t:]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})', line, re.I)
+        if match:
+            date_str = match.group(1)
             break
 
-    # Extract Address (look for P.O.BOX patterns)
+    # Extract Address - look for P.O. BOX or Address label
     address = None
     for i, line in enumerate(extraction_lines):
-        if re.search(r'P\.?\s*O\.?\s*B|P\.?O\.?\s*BOX|POB', line, re.I):
-            address_parts = [line]
-            for j in range(i + 1, min(i + 4, len(extraction_lines))):
-                next_line = extraction_lines[j]
-                if re.match(r'^(?:Tel|Fax|Email|Phone)', next_line, re.I):
+        if re.search(r'(?:P\.?O\.?\s*B(?:OX)?|Address)', line, re.I):
+            # Extract value after the label
+            match = re.search(r'(?:P\.?O\.?\s*B(?:OX)?|Address)\s*[\t:]?\s*(.+?)$', line, re.I)
+            if match:
+                addr_line = match.group(1).strip()
+                # Collect following lines that are part of address
+                address_parts = [addr_line] if addr_line else []
+                for j in range(i + 1, min(i + 4, len(extraction_lines))):
+                    next_line = extraction_lines[j].strip()
+                    # Stop at labeled fields
+                    if re.match(r'^(?:Tel|Fax|Email|Phone|Cust|Ref|Date|Del|Kind|Type|Invoice|PI|Code|Customer)', next_line, re.I):
+                        break
+                    # Filter out numeric dates
+                    if not re.match(r'^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$', next_line):
+                        if next_line:
+                            address_parts.append(next_line)
+                address = ' '.join(filter(None, address_parts))
+                if address:
                     break
-                address_parts.append(next_line)
-            address = ' '.join(address_parts)
-            break
 
     # Extract Phone
     phone = None
     for line in extraction_lines:
-        tel_match = re.search(r'\bTel\s*[:=]?\s*([^\n]+?)(?:\s*(?:Fax|Email)|$)', line, re.I)
+        tel_match = re.search(r'(?:Tel|Telephone|Phone)\s*[\t:]?\s*([\+\d][\d\s\-/\(\)\.\,]{5,})', line, re.I)
         if tel_match:
             phone = tel_match.group(1).strip()
-            break
+            if phone and len(phone) >= 7:
+                break
+            phone = None
 
     # Extract Email
     email = None
-    email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', '\n'.join(extraction_lines))
-    if email_match:
-        email = email_match.group(0)
+    for line in extraction_lines:
+        email_match = re.search(r'([\w\.-]+@[\w\.-]+\.\w+)', line)
+        if email_match:
+            email = email_match.group(1)
+            break
 
-    # Extract Reference
-    reference = extract_field_value([
-        r'Reference',
-        r'Ref\.?'
-    ])
+    # Extract Reference - look for "Reference", "Ref", "Cust Ref" patterns
+    reference = None
+    for i, line in enumerate(extraction_lines):
+        match = re.search(r'(?:Reference|Cust\s*Ref|Ref\.?)\s*[\t:]?\s*(.+?)(?:\s+Date|$)', line, re.I)
+        if match:
+            reference = match.group(1).strip()
+            # Filter out dates
+            if reference and not re.match(r'^\d{1,2}[/-]', reference):
+                # Clean up any trailing date-like text
+                reference = re.sub(r'\s*(?:Date|Ref\s*Date).*$', '', reference, flags=re.I).strip()
+                if reference:
+                    break
+            reference = None
 
     # Extract monetary values (use extraction_lines that start from Proforma Invoice)
     def find_amount(label_patterns):
@@ -499,12 +545,14 @@ def parse_invoice_data(text: str) -> dict:
     }
 
 def extract_line_items_from_text(text):
-    """Extract line items from text using pattern matching."""
+    """Extract line items from text using pattern matching.
+    Handles multi-line descriptions by tracking Sr No patterns.
+    """
     items = []
     lines = text.split('\n')
     cleaned_lines = [line.strip() for line in lines if line.strip()]
-    
-    # Find item section
+
+    # Find item section header
     item_section_start = -1
     for i, line in enumerate(cleaned_lines):
         keyword_count = sum([
@@ -521,43 +569,70 @@ def extract_line_items_from_text(text):
     if item_section_start == -1:
         return items
 
-    # Process item lines
-    for i in range(item_section_start + 1, len(cleaned_lines)):
+    # Process item lines - use a state machine to handle multi-line descriptions
+    i = item_section_start + 1
+    while i < len(cleaned_lines):
         line = cleaned_lines[i]
-        
-        # Stop at totals
-        if re.search(r'(Net\s*Value|Gross\s*Value|Grand\s*Total|Total\s*:)', line, re.I):
+
+        # Stop at totals section
+        if re.search(r'(Net\s*Value|Gross\s*Value|Grand\s*Total|Total\s*:|Page\s*\d+|Existing\s*Customer)', line, re.I):
             break
-            
-        # Skip header lines
-        if re.search(r'(Sr|Item|Code|Description|Qty|Rate|Value)', line, re.I):
+
+        # Skip pure header or empty-like lines
+        if re.search(r'^\s*(Sr|Item|Code|Description|Type|Qty|Rate|Value|Unit|Price|Amount)\s*$', line, re.I):
+            i += 1
             continue
 
-        # Parse item line
-        item = parse_item_line(line)
-        if item and item.get('description'):
-            items.append(item)
+        # Check if line starts with Sr No (new item)
+        sr_match = re.match(r'^(\d{1,2})\s+', line)
+        if sr_match:
+            # Parse the complete item (may span multiple lines)
+            item, lines_consumed = parse_item_multiline(cleaned_lines, i)
+            if item and item.get('description'):
+                items.append(item)
+            i += lines_consumed
+        else:
+            i += 1
 
     return items
 
-def parse_item_line(line):
-    """Parse a single item line."""
-    # Remove leading numbers (Sr No)
-    line = re.sub(r'^\d{1,3}\s+', '', line).strip()
-    
-    # Extract item code
-    code_match = re.search(r'^(\d{3,10})\s+', line)
-    item_code = code_match.group(1) if code_match else None
-    if code_match:
-        line = line[len(code_match.group(0)):].strip()
+def parse_item_multiline(all_lines, start_idx):
+    """Parse a single item that may span multiple lines.
 
-    # Extract unit type
-    unit_match = re.search(r'\b(PCS|NOS|KG|UNIT|BOX|SET|PC|UNT)\b', line, re.I)
-    unit = unit_match.group(1).upper() if unit_match else None
+    Returns:
+        tuple: (item_dict, lines_consumed)
+    """
+    if start_idx >= len(all_lines):
+        return None, 0
 
-    # Extract numbers (qty, rate, value)
+    current_line = all_lines[start_idx]
+
+    # Extract Sr No
+    sr_match = re.match(r'^(\d{1,2})\s+', current_line)
+    if not sr_match:
+        return None, 1
+
+    sr_no = int(sr_match.group(1))
+    rest_of_line = current_line[len(sr_match.group(0)):].strip()
+
+    # Parse the current line
+    item_code = None
+    description_parts = []
+    unit = None
     numbers = []
-    number_matches = re.finditer(r'(\d+(?:,\d+)*(?:\.\d+)?)', line)
+
+    # Extract item code (sequence of 6+ digits at start, or alphanumeric code)
+    code_match = re.match(r'^(\d{6,15}|[A-Z0-9]{3,15})\s+', rest_of_line)
+    if code_match:
+        item_code = code_match.group(1)
+        rest_of_line = rest_of_line[len(code_match.group(0)):].strip()
+
+    # Find unit type in the line
+    unit_keywords = r'\b(PCS|NOS|KG|HR|LTR|PIECES|UNITS?|KIT|BOX|CASE|SETS?|PC|UNT|KTS|BAG|BUNDLE|PACK|CYLINDER|LITRE|TYRE|TIRE|TL|LT)\b'
+    unit_match = re.search(unit_keywords, rest_of_line, re.I)
+
+    # Extract all numbers from the line
+    number_matches = re.finditer(r'(\d+(?:,\d+)*(?:\.\d+)?)', rest_of_line)
     for match in number_matches:
         try:
             num = float(match.group(1).replace(',', ''))
@@ -565,21 +640,62 @@ def parse_item_line(line):
         except ValueError:
             continue
 
-    # Determine description
-    description = line
+    # Extract description (text before unit or numbers)
     if unit_match:
-        description = description[:unit_match.start()].strip()
-    
-    # Clean up description
-    description = re.sub(r'\s+\d+(?:,\d+)*(?:\.\d+)?\s*$', '', description).strip()
-    description = re.sub(r'\s+(?:PCS|NOS|KG|UNIT|BOX|SET)\s*$', '', description, flags=re.I).strip()
+        description = rest_of_line[:unit_match.start()].strip()
+        unit = unit_match.group(1).upper()
+    else:
+        # Remove trailing numbers from description
+        description = re.sub(r'\s+\d+(?:,\d+)*(?:\.\d+)?\s*$', '', rest_of_line).strip()
 
-    if not description or len(description) < 2:
-        return None
+    description_parts.append(description)
 
-    # Build item
+    # Look ahead for continuation lines (lines that don't start with Sr No)
+    lines_consumed = 1
+    next_idx = start_idx + 1
+
+    while next_idx < len(all_lines):
+        next_line = all_lines[next_idx]
+
+        # Stop if we hit another Sr No (next item) - this is KEY
+        if re.match(r'^(\d{1,2})\s+', next_line):
+            break
+
+        # Stop if we hit a summary line or section marker
+        if re.search(r'(Net\s*Value|Gross\s*Value|Grand\s*Total|Total\s*:|Page\s*\d+|Existing\s*Customer|Customer\s*Information|Invoice\s*Date|Date)', next_line, re.I):
+            break
+
+        # Stop if we hit a blank or header-like line
+        if not next_line.strip() or re.search(r'^\s*(?:Sr|S\.N|Item|Code|Description|Type|Qty|Rate|Value|Unit|Price|Amount|#)\s*$', next_line, re.I):
+            break
+
+        # CONSERVATIVE APPROACH: Only add if line looks like description (not a number/quantity line)
+        # Check if the entire line is mostly text (not just numbers and units)
+        stripped = next_line.strip()
+
+        # Don't add lines that start with a number followed by unit (like "4 1,037,400.00")
+        if re.match(r'^\d+\s+[\d\,\.]+', stripped):
+            break
+
+        # Don't add lines that are just percentages or decimals
+        if re.match(r'^[\d\.\%]+$', stripped):
+            break
+
+        # This looks like a real description continuation - add it
+        description_parts.append(next_line)
+        lines_consumed += 1
+        next_idx += 1
+
+    # Combine multi-line description and limit length
+    full_description = ' '.join(filter(None, description_parts)).strip()
+    full_description = re.sub(r'\s+', ' ', full_description)[:255]
+
+    if not full_description or len(full_description) < 2:
+        return None, lines_consumed
+
+    # Build item record
     item = {
-        'description': description[:255],
+        'description': full_description,
         'code': item_code,
         'unit': unit,
         'qty': 1,
@@ -587,33 +703,42 @@ def parse_item_line(line):
         'value': None
     }
 
-    # Assign numbers to qty, rate, value
+    # Assign numbers intelligently - be more careful about which is qty vs rate
     if len(numbers) == 1:
+        # Single number - likely the value/amount
         item['value'] = Decimal(str(numbers[0]))
     elif len(numbers) == 2:
-        # Assume first is qty, second is value
-        if numbers[0] == int(numbers[0]) and numbers[0] < 1000:
+        # Two numbers - first is qty, second is value (or vice versa)
+        # Try to detect: if first is small integer (1-999), it's qty
+        if numbers[0] == int(numbers[0]) and 0 < numbers[0] < 1000 and numbers[1] > numbers[0]:
             item['qty'] = int(numbers[0])
             item['value'] = Decimal(str(numbers[1]))
         else:
+            # Otherwise assume the larger is value
             item['value'] = Decimal(str(max(numbers)))
     elif len(numbers) >= 3:
-        # Find qty (small integer)
+        # Multiple numbers - typically: code, qty, rate, value
+        # Try to find qty: should be a small integer
         qty_candidate = None
         max_num = max(numbers)
+
+        # Look for the first reasonable qty (small integer, not the max value)
         for num in numbers:
-            if num == int(num) and 0 < num < 1000 and num != max_num:
+            if num == int(num) and 0 < num < 1000 and num < max_num:
                 qty_candidate = int(num)
                 break
-                
+
         if qty_candidate:
             item['qty'] = qty_candidate
             item['value'] = Decimal(str(max_num))
-            # Calculate rate
-            if qty_candidate > 0:
+            # Calculate rate if we have qty and value
+            if qty_candidate > 0 and max_num > 0:
                 item['rate'] = Decimal(str(max_num / qty_candidate))
+        else:
+            # No clear qty found, assume last number is value
+            item['value'] = Decimal(str(numbers[-1]))
 
-    return item
+    return item, lines_consumed
 
 def extract_from_bytes(file_bytes, filename: str = '') -> dict:
     """Main entry point: extract text from file and parse invoice data.
