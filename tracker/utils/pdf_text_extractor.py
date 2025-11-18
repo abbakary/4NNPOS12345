@@ -679,24 +679,22 @@ def clean_description(description):
     """Clean and normalize description text."""
     if not description:
         return ""
-    
+
     # Remove extra whitespace
     description = re.sub(r'\s+', ' ', description).strip()
-    
+
     # Remove common prefixes/suffixes that might be left after number removal
     description = re.sub(r'^[-\s]*|[-\s]*$', '', description)
-    
-    # Remove any remaining isolated numbers or symbols
+
+    # Remove any remaining isolated numbers or symbols at word boundaries
     description = re.sub(r'\s+[-\*\.]\s+', ' ', description)
-    
-    # Remove percentages completely
+
+    # Remove percentages completely (these are VAT indicators, not part of description)
     description = re.sub(r'\d+\.?\d*\%', '', description).strip()
-    
-    # Remove common noise words
-    noise_words = ['FOR', 'CAR', 'TYRES', 'RIMS', 'SMALL']
-    for word in noise_words:
-        description = re.sub(r'\b' + word + r'\b', '', description, flags=re.I).strip()
-    
+
+    # Don't remove noise words - they may be legitimate parts of product descriptions
+    # e.g., "WHEEL BALANCE ALLOYD RIMS" or "VALVE FOR CAR TUBELESS TYRES"
+
     return description
 
 def extract_from_bytes(file_bytes, filename: str = '') -> dict:
