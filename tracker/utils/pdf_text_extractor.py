@@ -523,12 +523,14 @@ def parse_invoice_data(text: str) -> dict:
     }
 
 def extract_line_items_from_text(text):
-    """Extract line items from text using pattern matching."""
+    """Extract line items from text using pattern matching.
+    Handles multi-line descriptions by tracking Sr No patterns.
+    """
     items = []
     lines = text.split('\n')
     cleaned_lines = [line.strip() for line in lines if line.strip()]
-    
-    # Find item section
+
+    # Find item section header
     item_section_start = -1
     for i, line in enumerate(cleaned_lines):
         keyword_count = sum([
@@ -545,43 +547,70 @@ def extract_line_items_from_text(text):
     if item_section_start == -1:
         return items
 
-    # Process item lines
-    for i in range(item_section_start + 1, len(cleaned_lines)):
+    # Process item lines - use a state machine to handle multi-line descriptions
+    i = item_section_start + 1
+    while i < len(cleaned_lines):
         line = cleaned_lines[i]
-        
-        # Stop at totals
-        if re.search(r'(Net\s*Value|Gross\s*Value|Grand\s*Total|Total\s*:)', line, re.I):
+
+        # Stop at totals section
+        if re.search(r'(Net\s*Value|Gross\s*Value|Grand\s*Total|Total\s*:|Page\s*\d+|Existing\s*Customer)', line, re.I):
             break
-            
-        # Skip header lines
-        if re.search(r'(Sr|Item|Code|Description|Qty|Rate|Value)', line, re.I):
+
+        # Skip pure header or empty-like lines
+        if re.search(r'^\s*(Sr|Item|Code|Description|Type|Qty|Rate|Value|Unit|Price|Amount)\s*$', line, re.I):
+            i += 1
             continue
 
-        # Parse item line
-        item = parse_item_line(line)
-        if item and item.get('description'):
-            items.append(item)
+        # Check if line starts with Sr No (new item)
+        sr_match = re.match(r'^(\d{1,2})\s+', line)
+        if sr_match:
+            # Parse the complete item (may span multiple lines)
+            item, lines_consumed = parse_item_multiline(cleaned_lines, i)
+            if item and item.get('description'):
+                items.append(item)
+            i += lines_consumed
+        else:
+            i += 1
 
     return items
 
-def parse_item_line(line):
-    """Parse a single item line."""
-    # Remove leading numbers (Sr No)
-    line = re.sub(r'^\d{1,3}\s+', '', line).strip()
-    
-    # Extract item code
-    code_match = re.search(r'^(\d{3,10})\s+', line)
-    item_code = code_match.group(1) if code_match else None
-    if code_match:
-        line = line[len(code_match.group(0)):].strip()
+def parse_item_multiline(all_lines, start_idx):
+    """Parse a single item that may span multiple lines.
 
-    # Extract unit type
-    unit_match = re.search(r'\b(PCS|NOS|KG|UNIT|BOX|SET|PC|UNT)\b', line, re.I)
-    unit = unit_match.group(1).upper() if unit_match else None
+    Returns:
+        tuple: (item_dict, lines_consumed)
+    """
+    if start_idx >= len(all_lines):
+        return None, 0
 
-    # Extract numbers (qty, rate, value)
+    current_line = all_lines[start_idx]
+
+    # Extract Sr No
+    sr_match = re.match(r'^(\d{1,2})\s+', current_line)
+    if not sr_match:
+        return None, 1
+
+    sr_no = int(sr_match.group(1))
+    rest_of_line = current_line[len(sr_match.group(0)):].strip()
+
+    # Parse the current line
+    item_code = None
+    description_parts = []
+    unit = None
     numbers = []
-    number_matches = re.finditer(r'(\d+(?:,\d+)*(?:\.\d+)?)', line)
+
+    # Extract item code (sequence of digits at start)
+    code_match = re.match(r'^(\d{6,15})\s+', rest_of_line)
+    if code_match:
+        item_code = code_match.group(1)
+        rest_of_line = rest_of_line[len(code_match.group(0)):].strip()
+
+    # Find unit type in the line
+    unit_keywords = r'\b(PCS|NOS|KG|HR|LTR|PIECES|UNITS?|KIT|BOX|CASE|SETS?|PC|UNT|KTS|BAG|BUNDLE|PACK|CYLINDER|LITRE|TYRE|TIRE|TL|LT|NOS)\b'
+    unit_match = re.search(unit_keywords, rest_of_line, re.I)
+
+    # Extract all numbers from the line
+    number_matches = re.finditer(r'(\d+(?:,\d+)*(?:\.\d+)?)', rest_of_line)
     for match in number_matches:
         try:
             num = float(match.group(1).replace(',', ''))
@@ -589,21 +618,50 @@ def parse_item_line(line):
         except ValueError:
             continue
 
-    # Determine description
-    description = line
+    # Extract description (text before unit or numbers)
     if unit_match:
-        description = description[:unit_match.start()].strip()
-    
-    # Clean up description
-    description = re.sub(r'\s+\d+(?:,\d+)*(?:\.\d+)?\s*$', '', description).strip()
-    description = re.sub(r'\s+(?:PCS|NOS|KG|UNIT|BOX|SET)\s*$', '', description, flags=re.I).strip()
+        description = rest_of_line[:unit_match.start()].strip()
+        unit = unit_match.group(1).upper()
+    else:
+        # Remove trailing numbers from description
+        description = re.sub(r'\s+\d+(?:,\d+)*(?:\.\d+)?\s*$', '', rest_of_line).strip()
 
-    if not description or len(description) < 2:
-        return None
+    description_parts.append(description)
 
-    # Build item
+    # Look ahead for continuation lines (lines that don't start with Sr No)
+    lines_consumed = 1
+    next_idx = start_idx + 1
+
+    while next_idx < len(all_lines):
+        next_line = all_lines[next_idx]
+
+        # Stop if we hit another Sr No (next item)
+        if re.match(r'^(\d{1,2})\s+', next_line):
+            break
+
+        # Stop if we hit a summary line
+        if re.search(r'(Net\s*Value|Gross\s*Value|Grand\s*Total|Total\s*:|Page\s*\d+|Existing\s*Customer|Customer\s*Information)', next_line, re.I):
+            break
+
+        # Stop if we hit a blank or header-like line
+        if not next_line.strip() or re.search(r'^\s*(?:Sr|Item|Code|Description|Type|Qty|Rate|Value|Unit|Price|Amount|#)\s*$', next_line, re.I):
+            break
+
+        # This is a continuation line - add to description
+        description_parts.append(next_line)
+        lines_consumed += 1
+        next_idx += 1
+
+    # Combine multi-line description
+    full_description = ' '.join(filter(None, description_parts)).strip()
+    full_description = re.sub(r'\s+', ' ', full_description)[:255]
+
+    if not full_description or len(full_description) < 2:
+        return None, lines_consumed
+
+    # Build item record
     item = {
-        'description': description[:255],
+        'description': full_description,
         'code': item_code,
         'unit': unit,
         'qty': 1,
@@ -611,33 +669,38 @@ def parse_item_line(line):
         'value': None
     }
 
-    # Assign numbers to qty, rate, value
+    # Assign numbers intelligently
     if len(numbers) == 1:
         item['value'] = Decimal(str(numbers[0]))
     elif len(numbers) == 2:
-        # Assume first is qty, second is value
-        if numbers[0] == int(numbers[0]) and numbers[0] < 1000:
+        # Try to detect which is qty and which is value
+        if numbers[0] == int(numbers[0]) and 0 < numbers[0] < 1000:
             item['qty'] = int(numbers[0])
             item['value'] = Decimal(str(numbers[1]))
         else:
             item['value'] = Decimal(str(max(numbers)))
     elif len(numbers) >= 3:
-        # Find qty (small integer)
+        # Find qty (small integer not equal to max)
         qty_candidate = None
         max_num = max(numbers)
+
+        # Look for a number that's an integer between 1 and 1000
         for num in numbers:
             if num == int(num) and 0 < num < 1000 and num != max_num:
                 qty_candidate = int(num)
                 break
-                
+
         if qty_candidate:
             item['qty'] = qty_candidate
             item['value'] = Decimal(str(max_num))
-            # Calculate rate
+            # Calculate rate if we have qty and value
             if qty_candidate > 0:
                 item['rate'] = Decimal(str(max_num / qty_candidate))
+        else:
+            # No clear qty found, assume last number is value
+            item['value'] = Decimal(str(numbers[-1]))
 
-    return item
+    return item, lines_consumed
 
 def extract_from_bytes(file_bytes, filename: str = '') -> dict:
     """Main entry point: extract text from file and parse invoice data.
