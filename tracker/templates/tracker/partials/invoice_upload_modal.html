@@ -44,7 +44,14 @@
 
               <div id="uploadError" class="alert alert-danger" style="display:none" role="alert"></div>
               <div id="extractionSuccess" class="alert alert-success" style="display:none" role="alert">
-                <i class="fa fa-check-circle me-2"></i>Invoice data extracted successfully! Review the extracted information below.
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <i class="fa fa-check-circle me-2"></i>Invoice data extracted successfully! Review the extracted information below.
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-info" id="toggleAddOrderTypeBtn" style="display:none;" data-bs-toggle="modal" data-bs-target="#addOrderTypeModal">
+                    <i class="fa fa-plus me-1"></i>Add Another Order Type
+                  </button>
+                </div>
               </div>
               <div id="uploadProgress" class="progress" style="display:none;">
                 <div class="progress-bar progress-bar-striped progress-bar-animated" id="uploadProgressBar" role="progressbar" style="width: 0%"></div>
