@@ -1576,6 +1576,152 @@
   </div>
 </div>
 
+<!-- Sign Supporting Documents Modal (Only after order is completed) -->
+{% if order.status == 'completed' and order.attachments.all and order.type != 'inquiry' %}
+<div class="modal fade" id="signSupportingDocsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg signature-modal-container">
+    <div class="modal-content border-0 signature-modal-content shadow-lg">
+      <div class="modal-header signature-modal-header bg-gradient-info text-white border-0">
+        <div class="d-flex align-items-center">
+          <i class="fa fa-pen-fancy me-3 fa-lg"></i>
+          <div>
+            <h5 class="modal-title fw-bold mb-0">Sign Supporting Document</h5>
+            <small class="opacity-75">Sign uploaded supporting documents with customer signature</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0 signature-modal-body">
+        <div id="signSupportingDocsContent">
+          <input type="hidden" id="supportingDocSignatureData">
+          <input type="hidden" id="supportingDocAttachmentId">
+
+          <div class="border-bottom px-4 pt-4">
+            <ul class="nav nav-tabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="supportingDocSelectTab" data-bs-toggle="tab" data-bs-target="#supportingDocSelectSection" type="button" role="tab">
+                  <i class="fa fa-file me-2"></i>Select Document
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="supportingDocSignTab" data-bs-toggle="tab" data-bs-target="#supportingDocSignSection" type="button" role="tab">
+                  <i class="fa fa-signature me-2"></i>Signature
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <div class="tab-content p-4">
+            <!-- Document Selection Tab -->
+            <div class="tab-pane fade show active" id="supportingDocSelectSection" role="tabpanel">
+              <div class="alert alert-info bg-info bg-opacity-10 border-info mb-4">
+                <i class="fa fa-info-circle me-2"></i>
+                <strong>Document Signing:</strong> A signed copy will be created. The original document remains unchanged.
+              </div>
+
+              <h6 class="text-muted mb-3"><i class="fa fa-paperclip me-2"></i>Available Documents</h6>
+              <div class="document-list-selection">
+                {% for att in order.attachments.all %}
+                {% if not att.signature %}
+                <div class="document-selection-item mb-2">
+                  <div class="form-check">
+                    <input class="form-check-input supporting-doc-selector" type="radio" name="supporting_doc_choice" id="supporting-doc-{{ att.id }}" value="{{ att.id }}" data-doc-name="{{ att.filename|default:att.file.name }}" data-doc-url="{{ att.file.url }}" data-attachment-id="{{ att.id }}">
+                    <label class="form-check-label w-100 flex-grow-1" for="supporting-doc-{{ att.id }}">
+                      <div class="d-flex align-items-center justify-content-between w-100">
+                        <div class="d-flex align-items-center flex-grow-1">
+                          <div class="doc-selector-icon">
+                            <i class="fa fa-file-pdf"></i>
+                          </div>
+                          <div>
+                            <div class="fw-semibold">{{ att.filename|default:att.file.name }}</div>
+                            <small class="text-muted d-block">Uploaded {{ att.uploaded_at|localtime|date:"M j, Y g:i a" }}</small>
+                          </div>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+              </div>
+
+              <div id="supportingDocSelectedInfo" class="mt-4" style="display: none;">
+                <div class="selected-document-summary">
+                  <div class="summary-header">
+                    <i class="fa fa-check-circle text-success me-2"></i>
+                    <strong>Document Selected</strong>
+                  </div>
+                  <div class="summary-content">
+                    <div class="d-flex align-items-center gap-2">
+                      <i class="fa fa-file-alt text-primary fa-lg"></i>
+                      <div>
+                        <div class="fw-semibold text-dark" id="supportingDocSelectedName"></div>
+                        <small class="text-muted">Ready to sign</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="supportingDocPreviewSection" class="mt-4" style="display: none;">
+                <h6 class="mb-3"><i class="fa fa-eye me-2"></i>Document Preview</h6>
+                <div class="border rounded overflow-hidden bg-light" style="max-height: 400px; overflow-y: auto;">
+                  <div id="supportingDocPreviewHost" class="w-100 d-flex align-items-center justify-content-center text-muted" style="min-height: 300px;">
+                    <div class="text-center">
+                      <i class="fa fa-file fa-3x mb-3 opacity-50"></i>
+                      <p class="text-muted">Document preview</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Signature Capture Tab -->
+            <div class="tab-pane fade" id="supportingDocSignSection" role="tabpanel">
+              <div class="mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <label class="form-label fw-bold text-dark mb-0">
+                    <i class="fa fa-pen me-2 text-success"></i>Draw Customer Signature <span class="text-danger">*</span>
+                  </label>
+                  <small class="text-muted">Use mouse or touch to draw</small>
+                </div>
+                <div id="supportingDocSignContainer" class="signature-canvas-container position-relative overflow-hidden bg-white border-2 rounded d-flex align-items-center justify-content-center" style="height: 280px; border-color: #dee2e6; border-style: solid; cursor: crosshair; background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);">
+                  <div id="supportingDocSignPreviewHost" class="w-100 h-100 d-flex align-items-center justify-content-center text-muted">
+                    <div class="text-center pointer-events-none">
+                      <i class="fa fa-pen-fancy fa-3x mb-3 text-muted opacity-25"></i>
+                      <p class="mb-1 fw-medium">Click and draw signature</p>
+                      <small class="text-muted">Use your mouse or touchpad</small>
+                    </div>
+                  </div>
+                  <canvas id="supportingDocSignaturePad" class="position-absolute top-0 start-0 w-100 h-100" style="cursor: crosshair; z-index: 2; display: none;"></canvas>
+                </div>
+                <div class="d-flex gap-2 mt-3 align-items-center flex-wrap justify-content-between">
+                  <button type="button" class="btn btn-sm btn-outline-secondary" id="clearSupportingDocSignatureBtn" style="display: none;">
+                    <i class="fa fa-eraser me-1"></i>Clear Signature
+                  </button>
+                  <div id="supportingDocSignaturePreviewSmall" class="d-flex align-items-center gap-2" style="display: none;">
+                    <small class="text-muted fw-medium">Signature Preview:</small>
+                    <div class="border rounded" style="padding: 4px; background: white;">
+                      <canvas id="supportingDocSignaturePreviewMini" width="140" height="70" style="border: 1px solid #e9ecef; border-radius: 4px; background: white; display: block;"></canvas>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer bg-light border-top signature-modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-info fw-bold" id="footerSignSupportingDoc">
+          <i class="fa fa-check-circle me-2"></i>Sign & Save Document
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- Cancel Order Modal -->
 <div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
