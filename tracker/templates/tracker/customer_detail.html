@@ -754,27 +754,53 @@
             </div>
         </div>
         <div class="px-3 pt-2">
-            <div class="row g-2 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label fw-medium">Vehicle Plate</label>
-                    {% with first_vehicle=customer.vehicles.first %}
-                    <input type="text" id="quickStartPlate" class="form-control" value="{% if first_vehicle %}{{ first_vehicle.plate_number }}{% endif %}" placeholder="e.g., ABC-1234" style="text-transform: uppercase;" />
-                    {% endwith %}
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label fw-medium">Quick Start</label>
-                    <div class="d-flex gap-2">
-                        <button type="button" id="quickStartBtn" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#quickOrderTypeModal">
+            <div class="quick-start-container">
+                <div class="row g-3 align-items-end">
+                    <div class="col-lg-5">
+                        <label class="form-label fw-medium">
+                            <i class="fa fa-car me-2 text-info"></i>Vehicle Plate Number
+                        </label>
+                        {% with first_vehicle=customer.vehicles.first %}
+                        <div class="input-group">
+                            <input type="text" id="quickStartPlate" class="form-control" value="{% if first_vehicle %}{{ first_vehicle.plate_number }}{% endif %}" placeholder="e.g., ABC-1234" style="text-transform: uppercase;" />
+                            {% if first_vehicle %}
+                            <button type="button" class="btn btn-outline-secondary" id="clearPlateBtn" title="Clear and enter new plate">
+                                <i class="fa fa-times"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                        {% endwith %}
+                        <small class="text-muted d-block mt-1">
+                            <i class="fa fa-info-circle me-1"></i>
+                            {% if first_vehicle %}Use existing plate or enter a new one{% else %}Enter vehicle plate number{% endif %}
+                        </small>
+                    </div>
+                    <div class="col-lg-4">
+                        <label class="form-label fw-medium">
+                            <i class="fa fa-plus-circle me-2 text-success"></i>Start New Order
+                        </label>
+                        <button type="button" id="quickStartBtn" class="btn btn-sm btn-primary w-100" data-bs-toggle="modal" data-bs-target="#quickOrderTypeModal">
                             <i class="fa fa-play me-1"></i>Start Order
                         </button>
-                        <button type="button" id="quickStopBtn" class="btn btn-sm btn-outline-danger">
-                            <i class="fa fa-stop me-1"></i>Stop Order
+                        {% if started_order_id %}<input type="hidden" id="startedOrderId" value="{{ started_order_id }}" />{% endif %}
+                    </div>
+                    <div class="col-lg-3">
+                        <label class="form-label fw-medium">
+                            <i class="fa fa-stop-circle me-2 text-danger"></i>Stop Order
+                        </label>
+                        <button type="button" id="quickStopBtn" class="btn btn-sm btn-outline-danger w-100">
+                            <i class="fa fa-stop me-1"></i>Stop
                         </button>
                     </div>
-                    {% if started_order_id %}<input type="hidden" id="startedOrderId" value="{{ started_order_id }}" />{% endif %}
                 </div>
-                <div class="col-md-4">
-                    <small class="text-muted">Start captures time; Stop marks order completed.</small>
+                <div class="row g-2 mt-1">
+                    <div class="col-12">
+                        <small class="text-muted d-block">
+                            <i class="fa fa-clock me-1"></i>
+                            <strong>Start</strong> captures order start time and customer visit.
+                            <strong>Stop</strong> marks the order as completed.
+                        </small>
+                    </div>
                 </div>
             </div>
         </div>
