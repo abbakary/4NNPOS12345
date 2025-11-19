@@ -284,6 +284,8 @@ def started_orders_dashboard(request):
     - sort_by: Sort orders by 'started_at', 'plate_number', 'order_type' (default: '-started_at')
     - search: Search by plate number or customer name
     """
+    from django.db.models import Q, Count
+
     user_branch = get_user_branch(request.user)
     status_filter = request.GET.get('status', '')
     sort_by = request.GET.get('sort_by', '-started_at')
@@ -301,7 +303,6 @@ def started_orders_dashboard(request):
         orders = base_orders.filter(status=status_filter).select_related('customer', 'vehicle')
     else:
         # Default: show active orders (created/in_progress/overdue) + completed from today
-        from django.db.models import Q
         today = timezone.now().date()
         orders = base_orders.filter(
             Q(status__in=['created', 'in_progress', 'overdue']) |  # All active orders (including overdue)
@@ -310,7 +311,6 @@ def started_orders_dashboard(request):
 
     # Apply search filter
     if search_query:
-        from django.db.models import Q
         orders = orders.filter(
             Q(vehicle__plate_number__icontains=search_query) |
             Q(customer__full_name__icontains=search_query)
