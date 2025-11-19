@@ -187,10 +187,12 @@
               <i class="fa fa-clock me-1"></i>
               {% if order.status == 'created' %}
                 Started: {{ order.created_at|localtime|date_medium }}
-              {% elif order.status == 'in_progress' %}
+              {% elif order.status == 'in_progress' or order.status == 'overdue' %}
                 In Progress: {{ order.started_at|localtime|date_medium }}
               {% elif order.status == 'completed' %}
                 Completed: {{ order.completed_at|localtime|date_medium }}
+              {% elif order.status == 'cancelled' %}
+                Cancelled: {{ order.cancelled_at|localtime|date_medium }}
               {% else %}
                 {{ order.created_at|localtime|date_medium }}
               {% endif %}
@@ -201,8 +203,12 @@
               <span class="badge bg-secondary rounded-pill"><i class="fa fa-hourglass-start me-1"></i>Started</span>
             {% elif order.status == 'in_progress' %}
               <span class="badge bg-warning text-dark rounded-pill"><i class="fa fa-spinner me-1"></i>In Progress</span>
+            {% elif order.status == 'overdue' %}
+              <span class="badge bg-danger rounded-pill"><i class="fa fa-exclamation-triangle me-1"></i>Overdue</span>
             {% elif order.status == 'completed' %}
               <span class="badge bg-success rounded-pill"><i class="fa fa-check-circle me-1"></i>Completed</span>
+            {% elif order.status == 'cancelled' %}
+              <span class="badge bg-secondary rounded-pill"><i class="fa fa-times-circle me-1"></i>Cancelled</span>
             {% else %}
               <span class="badge bg-light text-dark rounded-pill">{{ order.status }}</span>
             {% endif %}
