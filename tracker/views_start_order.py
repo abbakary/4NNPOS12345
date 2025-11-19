@@ -81,7 +81,7 @@ def api_start_order(request):
                     # Check if there's already a started (in_progress) order for this vehicle
                     existing_order = Order.objects.filter(
                         vehicle=existing_vehicle,
-                        status='in_progress'
+                        status__in=['created', 'in_progress']
                     ).order_by('-created_at').first()
 
                     if existing_order:
@@ -91,7 +91,7 @@ def api_start_order(request):
                             'order_id': existing_order.id,
                             'order_number': existing_order.order_number,
                             'plate_number': plate_number,
-                            'started_at': existing_order.started_at.isoformat(),
+                            'started_at': existing_order.started_at.isoformat() if existing_order.started_at else None,
                             'existing_order': True,
                             'message': 'Existing order found for this plate'
                         }, status=200)
@@ -109,7 +109,8 @@ def api_start_order(request):
                             'plate': existing_vehicle.plate_number,
                             'make': existing_vehicle.make,
                             'model': existing_vehicle.model,
-                        }
+                        },
+                        'message': 'Vehicle found for existing customer. Use the existing customer link or continue to create a new order.'
                     }, status=200)
 
             # Create new customer if not using pre-selected one
