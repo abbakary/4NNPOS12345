@@ -308,6 +308,15 @@
   const hiddenFieldsDiv = document.getElementById('extractedHiddenFields');
   const invoiceForm = document.getElementById('invoiceUploadForm');
   const createInvoiceBtn = document.getElementById('createInvoiceBtn');
+  const toggleAddOrderTypeBtn = document.getElementById('toggleAddOrderTypeBtn');
+  const additionalOrderTypesSection = document.getElementById('additionalOrderTypesSection');
+  const additionalOrderTypesList = document.getElementById('additionalOrderTypesList');
+  const confirmAddOrderTypeBtn = document.getElementById('confirmAddOrderTypeBtn');
+  const additionalOrderTypeSelect = document.getElementById('additionalOrderTypeSelect');
+  const additionalOrderTypeReason = document.getElementById('additionalOrderTypeReason');
+  const addOrderTypeModal = document.getElementById('addOrderTypeModal');
+
+  let additionalOrderTypes = [];
 
   if (!uploadBtn) return;
 
