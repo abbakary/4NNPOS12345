@@ -510,25 +510,45 @@
   });
 
   function populatePreview(header) {
-    const map = {
-      'previewCustomerName': 'customer_name',
-      'previewCustomerPhone': 'phone',
-      'previewCustomerEmail': 'email',
-      'previewCustomerAddress': 'address',
-      'previewInvoiceNo': 'invoice_no',
-      'previewInvoiceDate': 'date',
-      'previewCodeNo': 'code_no',
-      'previewReference': 'reference'
+    // Populate editable customer fields
+    const customerFieldMap = {
+      'editableCustomerName': 'customer_name',
+      'editableCustomerPhone': 'phone',
+      'editableCustomerEmail': 'email',
+      'editableCustomerAddress': 'address'
     };
 
-    Object.keys(map).forEach(elementId => {
+    Object.keys(customerFieldMap).forEach(elementId => {
       const el = document.getElementById(elementId);
       if (el) {
-        const value = header[map[elementId]] || '-';
-        el.textContent = value;
+        const value = header[customerFieldMap[elementId]] || '';
+        el.value = value;
       }
     });
 
+    // Populate editable invoice detail fields
+    const invoiceFieldMap = {
+      'editableInvoiceNo': 'invoice_no',
+      'editableCodeNo': 'code_no',
+      'editableReference': 'reference'
+    };
+
+    Object.keys(invoiceFieldMap).forEach(elementId => {
+      const el = document.getElementById(elementId);
+      if (el) {
+        const value = header[invoiceFieldMap[elementId]] || '';
+        el.value = value;
+      }
+    });
+
+    // Populate invoice date
+    const dateEl = document.getElementById('editableInvoiceDate');
+    if (dateEl) {
+      const dateStr = header.date || '';
+      dateEl.value = formatDateForForm(dateStr);
+    }
+
+    // Populate payment summary display
     if (document.getElementById('previewSubtotal')) {
       const subtotal = header.subtotal || 0;
       document.getElementById('previewSubtotal').textContent = parseFloat(subtotal).toLocaleString('en-US', { minimumFractionDigits: 2 });
