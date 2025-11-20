@@ -811,6 +811,28 @@
   }
 
   invoiceForm.addEventListener('submit', function(e) {
+    // CRITICAL: Ensure customer_id is always passed to prevent duplicate customer creation
+    // This is essential when uploading invoices from started orders with temporary customers
+    const customerIdField = document.getElementById('formCustomerId');
+    const preSelectedCustomerIdField = document.getElementById('formPreSelectedCustomerId');
+
+    // Get the selected_order_id to fetch customer from that order if not already set
+    const selectedOrderId = invoiceForm.querySelector('[name="selected_order_id"]')?.value;
+
+    // If customer_id fields are empty and we have an order, fetch the order's customer
+    if (selectedOrderId && (!customerIdField.value || !preSelectedCustomerIdField.value)) {
+      // Try to get customer ID from data attributes or similar sources
+      const orderCustomerId = invoiceForm.dataset.customerId ||
+                              document.querySelector('[data-order-id="' + selectedOrderId + '"]')?.dataset.customerId ||
+                              null;
+
+      if (orderCustomerId) {
+        customerIdField.value = orderCustomerId;
+        preSelectedCustomerIdField.value = orderCustomerId;
+      }
+    }
+
+    // Handle additional order types
     const hiddenOrderTypes = hiddenFieldsDiv.querySelector('input[name="additional_order_types"]');
     if (hiddenOrderTypes) {
       hiddenOrderTypes.value = JSON.stringify(additionalOrderTypes);
