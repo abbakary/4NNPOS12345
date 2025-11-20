@@ -381,12 +381,21 @@ def api_create_invoice_from_upload(request):
                     logger.warning(f"Could not find existing order {selected_order_id}: {e}")
                     pass
 
-            # If no existing order, create new one
+            # Extract item codes for order type detection
+            item_codes = request.POST.getlist('item_code[]')
+            item_codes = [code.strip() for code in item_codes if code and code.strip()]
+
+            # Determine order type from item codes
+            from tracker.utils.order_type_detector import determine_order_type_from_codes
+            detected_order_type, categories, mapping_info = determine_order_type_from_codes(item_codes)
+            logger.info(f"Detected order type from codes: {detected_order_type}, categories: {categories}")
+
+            # If no existing order, create new one with detected type
             if not order:
                 try:
                     order = OrderService.create_order(
                         customer=customer_obj,
-                        order_type='service',
+                        order_type=detected_order_type,
                         branch=user_branch,
                         vehicle=vehicle,
                         description='Created from invoice upload'
