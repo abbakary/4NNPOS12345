@@ -10,6 +10,7 @@ from . import views_start_order
 from . import views_invoice
 from . import views_invoice_upload
 from . import views_vehicle_tracking
+from . import views_labour_codes
 
 app_name = "tracker"
 
@@ -105,6 +106,14 @@ urlpatterns = [
     path("vehicles/tracking/dashboard/", views_vehicle_tracking.vehicle_tracking_dashboard, name="vehicle_tracking_dashboard"),
     path("api/vehicles/tracking/data/", views_vehicle_tracking.api_vehicle_tracking_data, name="api_vehicle_tracking_data"),
     path("api/vehicles/analytics/", views_vehicle_tracking.api_vehicle_analytics, name="api_vehicle_analytics"),
+
+    # Labour Codes Management
+    path("labour-codes/", views_labour_codes.labour_codes_list, name="labour_codes_list"),
+    path("labour-codes/import/", views_labour_codes.labour_codes_import, name="labour_codes_import"),
+    path("labour-codes/create/", views_labour_codes.labour_code_create, name="labour_code_create"),
+    path("labour-codes/<int:pk>/edit/", views_labour_codes.labour_code_edit, name="labour_code_edit"),
+    path("labour-codes/<int:pk>/delete/", views_labour_codes.labour_code_delete, name="labour_code_delete"),
+    path("api/labour-codes/", views_labour_codes.api_labour_codes, name="api_labour_codes"),
 
     # User management (admin)
     path("users/", views.users_list, name="users_list"),

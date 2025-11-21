@@ -380,6 +380,21 @@
                                     </a>
                                 </li>
 
+                                <!-- Labour Codes -->
+                                <li class="sidebar-list">
+                                    <i class="fa fa-thumb-tack"></i>
+                                    <a class="sidebar-link sidebar-title" href="#">
+                                        <svg class="stroke-icon">
+                                            <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-table"></use>
+                                        </svg>
+                                        <span>Labour Codes</span>
+                                    </a>
+                                    <ul class="sidebar-submenu">
+                                        <li><a href="{% url 'tracker:labour_codes_list' %}">All Labour Codes</a></li>
+                                        <li><a href="{% url 'tracker:labour_codes_import' %}">Import / Add</a></li>
+                                    </ul>
+                                </li>
+
                                 <!-- System -->
                                 {% if user.is_superuser %}
                                 <li class="sidebar-list">
