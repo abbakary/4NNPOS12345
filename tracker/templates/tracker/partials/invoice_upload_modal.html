@@ -287,6 +287,37 @@
   background-color: #fff;
 }
 
+.extracted-line-items-table code {
+  background-color: #f0f0f0;
+  padding: 0.15rem 0.35rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #333;
+}
+
+.extracted-line-items-table .badge {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.65rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.extracted-line-items-table .badge-labour {
+  background-color: #0dcaf0;
+  color: white;
+}
+
+.extracted-line-items-table .badge-service {
+  background-color: #0d6efd;
+  color: white;
+}
+
+.extracted-line-items-table .badge-sales {
+  background-color: #198754;
+  color: white;
+}
+
 @media (max-width: 1200px) {
   .extracted-line-items-table {
     font-size: 0.8rem;
@@ -301,6 +332,11 @@
   .extracted-line-items-table th,
   .extracted-line-items-table td {
     padding: 0.4rem 0.25rem;
+  }
+
+  .extracted-line-items-table .badge {
+    font-size: 0.65rem;
+    padding: 0.25rem 0.5rem;
   }
 }
 </style>
