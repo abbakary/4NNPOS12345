@@ -268,7 +268,9 @@ def api_vehicle_tracking_data(request):
                 'is_returning': is_returning,
                 'order_stats': order_stats,
                 'order_types': sorted(list(order_types)),
+                'service_types': sorted(list(service_types)) if service_types else [],
                 'invoices': invoice_list,
+                'order_count': all_orders.count(),
             }
             
             vehicle_data.append(vehicle_dict)
