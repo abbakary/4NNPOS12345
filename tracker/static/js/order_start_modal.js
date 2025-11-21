@@ -7,7 +7,7 @@ class OrderStartModal {
   constructor() {
     this.modal = null;
     this.currentStep = 0;
-    this.totalSteps = 4;
+    this.totalSteps = 3;
     this.formData = {};
     this.foundCustomer = null;
     this.foundVehicle = null;
@@ -47,15 +47,11 @@ class OrderStartModal {
       });
     }
 
-    // Order type selection
-    document.querySelectorAll('.order-type-option').forEach(option => {
-      option.addEventListener('click', function(e) {
-        e.preventDefault();
-        const input = this.querySelector('input[type="radio"]');
-        input.checked = true;
-        self.handleOrderTypeChange();
-      });
-    });
+    // Continue as new order for existing vehicle
+    const continueAsNewBtn = document.getElementById('continueAsNewBtn');
+    if (continueAsNewBtn) {
+      continueAsNewBtn.addEventListener('click', () => self.continueAsNewOrder());
+    }
 
     // Customer type selection
     document.querySelectorAll('.customer-type-option').forEach(option => {
@@ -77,30 +73,6 @@ class OrderStartModal {
     document.getElementById('prevBtn').addEventListener('click', () => self.prevStep());
     document.getElementById('submitBtn').addEventListener('click', () => self.submitForm());
     document.getElementById('cancelBtn').addEventListener('click', () => self.resetForm());
-  }
-
-  handleOrderTypeChange() {
-    const selectedType = document.querySelector('input[name="order_type"]:checked')?.value;
-    
-    if (!selectedType) {
-      this.showError('orderTypeError', 'Please select an order type');
-      return;
-    }
-
-    // Show/hide vehicle details based on order type
-    const vehicleSection = document.querySelector('.vehicle-details-section');
-    if (selectedType === 'upload') {
-      // Vehicle details are more important for upload
-      vehicleSection?.classList.remove('d-none');
-    } else if (selectedType === 'inquiry') {
-      // Hide vehicle details for inquiry
-      vehicleSection?.classList.add('d-none');
-    } else {
-      vehicleSection?.classList.remove('d-none');
-    }
-
-    this.clearError('orderTypeError');
-    this.formData.order_type = selectedType;
   }
 
   handleCustomerTypeChange() {
@@ -182,7 +154,7 @@ class OrderStartModal {
     this.currentStep = stepNumber;
 
     // Auto-fill extracted data if available
-    if (stepNumber === 3) {
+    if (stepNumber === 2) {
       this.prepareExtractedDataStep();
     }
   }
@@ -195,25 +167,12 @@ class OrderStartModal {
         // Step 0 (quick lookup) is optional - always return true
         return true;
       case 1:
-        return this.validateOrderType();
-      case 2:
         return this.validateCustomerType();
-      case 3:
+      case 2:
         return this.validateExtractedData();
       default:
         return true;
     }
-  }
-
-  validateOrderType() {
-    const selected = document.querySelector('input[name="order_type"]:checked');
-    
-    if (!selected) {
-      this.showError('orderTypeError', 'Please select an order type');
-      return false;
-    }
-
-    return true;
   }
 
   validateCustomerType() {
@@ -484,6 +443,32 @@ class OrderStartModal {
     this.foundCustomer = null;
     this.foundVehicle = null;
     this.showStep(1);
+  }
+
+  continueAsNewOrder() {
+    // Customer and vehicle are found - proceed with new order
+    // This will create a new order without linking to any existing started order
+    if (this.foundCustomer && this.foundVehicle) {
+      // Store the customer and vehicle info for order creation
+      this.formData.customer_id = this.foundCustomer.id;
+      this.formData.use_existing_customer = true;
+
+      // Pre-populate vehicle info
+      document.querySelector('input[name="extracted_plate"]').value = this.foundVehicle.plate || '';
+      document.querySelector('input[name="extracted_make"]').value = this.foundVehicle.make || '';
+      document.querySelector('input[name="extracted_model"]').value = this.foundVehicle.model || '';
+
+      // Pre-select the customer type based on customer type
+      const customerType = this.foundCustomer.customer_type || 'personal';
+      const customerTypeInput = document.querySelector(`input[name="customer_type"][value="${customerType}"]`);
+      if (customerTypeInput) {
+        customerTypeInput.checked = true;
+        this.handleCustomerTypeChange();
+      }
+
+      // Move to customer type selection
+      this.showStep(1);
+    }
   }
 
   showQuickLookupError(message) {
