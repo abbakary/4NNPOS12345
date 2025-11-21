@@ -12,10 +12,9 @@
       <form id="invoiceUploadForm" method="post" action="{% url 'tracker:api_create_invoice_from_upload' %}">
         {% csrf_token %}
         <input type="hidden" name="selected_order_id" value="{{ order.id }}">
-        <input type="hidden" name="plate" value="{% if vehicle and vehicle.plate_number %}{{ vehicle.plate_number }}{% endif %}">
-        <!-- Customer ID hidden fields - always present, populated by template or JavaScript to prevent duplicate customer creation -->
-        <input type="hidden" id="formCustomerId" name="customer_id" value="{% if order.customer %}{{ order.customer.id }}{% endif %}">
-        <input type="hidden" id="formPreSelectedCustomerId" name="pre_selected_customer_id" value="{% if order.customer %}{{ order.customer.id }}{% endif %}">
+        {% if vehicle and vehicle.plate_number %}<input type="hidden" name="plate" value="{{ vehicle.plate_number }}">{% endif %}
+        {% if order.customer %}<input type="hidden" name="customer_id" value="{{ order.customer.id }}">{% endif %}
+        {% if order.customer %}<input type="hidden" name="pre_selected_customer_id" value="{{ order.customer.id }}">{% endif %}
 
         <!-- Hidden fields for extracted data -->
         <div id="extractedHiddenFields"></div>
@@ -403,14 +402,6 @@
         errorBox.style.display = 'none';
         successMsg.innerHTML = '<i class="fa fa-check-circle me-2"></i>Invoice created successfully! Redirecting...';
         successMsg.style.display = 'block';
-
-        // Show toast notification at top-right
-        if (typeof showToast === 'function') {
-          const message = data.customer_found
-            ? 'Customer found! Order created successfully'
-            : 'Invoice created successfully';
-          showToast(message, 'success', 4000);
-        }
 
         setTimeout(() => {
           if (data.redirect_url) {
@@ -819,28 +810,6 @@
   }
 
   invoiceForm.addEventListener('submit', function(e) {
-    // CRITICAL: Ensure customer_id is always passed to prevent duplicate customer creation
-    // This is essential when uploading invoices from started orders with temporary customers
-    const customerIdField = document.getElementById('formCustomerId');
-    const preSelectedCustomerIdField = document.getElementById('formPreSelectedCustomerId');
-
-    // Get the selected_order_id to fetch customer from that order if not already set
-    const selectedOrderId = invoiceForm.querySelector('[name="selected_order_id"]')?.value;
-
-    // If customer_id fields are empty and we have an order, fetch the order's customer
-    if (selectedOrderId && (!customerIdField.value || !preSelectedCustomerIdField.value)) {
-      // Try to get customer ID from data attributes or similar sources
-      const orderCustomerId = invoiceForm.dataset.customerId ||
-                              document.querySelector('[data-order-id="' + selectedOrderId + '"]')?.dataset.customerId ||
-                              null;
-
-      if (orderCustomerId) {
-        customerIdField.value = orderCustomerId;
-        preSelectedCustomerIdField.value = orderCustomerId;
-      }
-    }
-
-    // Handle additional order types
     const hiddenOrderTypes = hiddenFieldsDiv.querySelector('input[name="additional_order_types"]');
     if (hiddenOrderTypes) {
       hiddenOrderTypes.value = JSON.stringify(additionalOrderTypes);

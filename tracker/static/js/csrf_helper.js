@@ -121,7 +121,7 @@ function postJSONWithCSRF(url, data = {}) {
  */
 function showToast(message, type = 'info', duration = 3000) {
   // If showToast function is already defined globally, use it
-  if (typeof window.showToast === 'function' && window.showToast !== arguments.callee) {
+  if (typeof window.showToast === 'function' && window.showToast !== showToast) {
     window.showToast(message, type);
     return;
   }

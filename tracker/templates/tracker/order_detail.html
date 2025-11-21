@@ -48,7 +48,6 @@
             <p class="mb-0">This order contains multiple types: <strong>{{ order|order_type_display }}</strong></p>
             {% if order.mixed_categories %}
               <small class="text-muted d-block mt-1">Categories:
-                {% load json %}
                 {% with categories=order.mixed_categories|safe %}
                   {% autoescape off %}{{ categories }}{% endautoescape %}
                 {% endwith %}

@@ -584,10 +584,6 @@ def api_create_invoice_from_upload(request):
             # Create payment record if total > 0
             if inv.total_amount > 0:
                 try:
-                    payment = InvoicePayment()
-                    payment.invoice = inv
-                    payment.amount = Decimal('0')  # Default to unpaid (amount 0)
-
                     # Map extracted payment method or use form value or default
                     extracted_method = request.POST.get('payment_method', '').strip().lower() or 'on_delivery'
                     payment_method_map = {
@@ -605,17 +601,29 @@ def api_create_invoice_from_upload(request):
                     }
 
                     # Try to match the extracted method to a valid choice
-                    payment.payment_method = 'on_delivery'  # Default
+                    payment_method = 'on_delivery'  # Default
                     for key, val in payment_method_map.items():
                         if key in extracted_method:
-                            payment.payment_method = val
+                            payment_method = val
                             break
 
-                    payment.payment_date = None
-                    payment.reference = None
-                    payment.save()
+                    # Use get_or_create to handle existing payment records
+                    payment, created = InvoicePayment.objects.get_or_create(
+                        invoice=inv,
+                        defaults={
+                            'amount': Decimal('0'),  # Default to unpaid (amount 0)
+                            'payment_method': payment_method,
+                            'payment_date': None,
+                            'reference': None,
+                        }
+                    )
+
+                    if created:
+                        logger.info(f"Created payment record for invoice {inv.id}")
+                    else:
+                        logger.info(f"Payment record already exists for invoice {inv.id}, using existing record")
                 except Exception as e:
-                    logger.warning(f"Failed to create payment record: {e}")
+                    logger.warning(f"Failed to create or get payment record: {e}")
             
             # Update started order with invoice data
             try:
@@ -666,7 +674,7 @@ def api_create_invoice_from_upload(request):
                         else:
                             logger.info(f"OrderComponent already exists for order {order.id}: type={component_type}")
 
-            except json.JSONDecodeError as e:
+            except ValueError as e:
                 logger.warning(f"Failed to parse additional_order_types JSON: {e}")
             except Exception as e:
                 logger.warning(f"Failed to create order components: {e}")
