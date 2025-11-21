@@ -1,0 +1,236 @@
+{% extends 'tracker/base.html' %}
+{% load static %}
+
+{% block title %}Import / Add Labour Codes - POS Tracker{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="row align-items-center">
+            <div class="col-sm-6">
+                <h3 class="f-w-700">Labour Codes</h3>
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'tracker:dashboard' %}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'tracker:labour_codes_list' %}">Labour Codes</a></li>
+                    <li class="breadcrumb-item active">Import / Add</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="row">
+        <div class="col-12">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header pb-0">
+                    <h5>Import Labour Codes from CSV</h5>
+                    <span class="d-block mt-2 text-muted">Upload a CSV file with labour codes or add them manually below.</span>
+                </div>
+                <div class="card-body">
+                    <!-- CSV Import Form -->
+                    <div class="mb-4">
+                        <h6 class="mb-3 fw-bold">CSV Import</h6>
+                        <form method="post" enctype="multipart/form-data" class="csv-import-form">
+                            {% csrf_token %}
+                            
+                            <!-- CSV File Upload -->
+                            <div class="mb-3">
+                                <label class="form-label">CSV File <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="file" class="form-control" name="csv_file" accept=".csv" required>
+                                    <button class="btn btn-primary" type="submit" name="action" value="import">
+                                        <i class="fa fa-upload"></i> Import
+                                    </button>
+                                </div>
+                                <small class="d-block mt-2 text-muted">
+                                    CSV must contain columns: <code>code</code>, <code>description</code>, <code>category</code>
+                                </small>
+                            </div>
+
+                            <!-- Clear Existing Option -->
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="clear_existing" id="clearExisting">
+                                <label class="form-check-label" for="clearExisting">
+                                    Clear all existing codes before importing
+                                </label>
+                                <small class="d-block mt-1 text-muted">
+                                    Warning: This will delete all existing labour codes
+                                </small>
+                            </div>
+                        </form>
+
+                        <!-- Sample CSV Template -->
+                        <div class="mt-4 p-3 bg-light rounded">
+                            <h6 class="mb-3">Sample CSV Format:</h6>
+                            <code class="d-block text-dark" style="font-size: 12px; line-height: 1.6;">
+code,description,category<br>
+22007,OIL SERVICE (FILTER) FOR 4X4,labour<br>
+21044,WHEEL BALANCE ALLOY RIMS,tyre service<br>
+21031,REPAIR & A/C PASSENGER,labour<br>
+32004,WHEEL BALANCE TRUCK,tyre service
+                            </code>
+                            <button class="btn btn-sm btn-outline-primary mt-3" type="button" onclick="downloadSampleCSV()">
+                                <i class="fa fa-download"></i> Download Sample CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Manual Entry Form -->
+                    <div class="mt-5">
+                        <h6 class="mb-3 fw-bold">Add Single Labour Code</h6>
+                        <form method="post" class="labour-code-form">
+                            {% csrf_token %}
+                            
+                            <div class="row">
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label">Code <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" placeholder="e.g., 22007" name="code_manual" id="codeInput" required>
+                                    <small class="text-muted">Unique labour code identifier</small>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Description <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" placeholder="e.g., OIL SERVICE (FILTER)" name="description_manual" id="descriptionInput" required>
+                                </div>
+                                
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label">Category <span class="text-danger">*</span></label>
+                                    <select class="form-select" name="category_manual" id="categoryInput" required>
+                                        <option value="">Select category</option>
+                                        <option value="labour">Labour</option>
+                                        <option value="tyre service">Tyre Service</option>
+                                        <option value="service">Service</option>
+                                        <option value="sales">Sales</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-3 mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="is_active_manual" id="isActiveInput" checked>
+                                        <label class="form-check-label" for="isActiveInput">
+                                            Active
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-12">
+                                    <button type="submit" class="btn btn-success me-2" name="action" value="manual">
+                                        <i class="fa fa-plus"></i> Add Labour Code
+                                    </button>
+                                    <a href="{% url 'tracker:labour_codes_list' %}" class="btn btn-secondary">
+                                        <i class="fa fa-arrow-left"></i> Back to List
+                                    </a>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    {% if import_stats %}
+                    <hr>
+                    <div class="mt-5">
+                        <h6 class="mb-3">Import Results</h6>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h5 class="text-success">{{ import_stats.created }}</h5>
+                                        <p class="text-muted mb-0">Created</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h5 class="text-info">{{ import_stats.updated }}</h5>
+                                        <p class="text-muted mb-0">Updated</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h5 class="text-warning">{{ import_stats.errors }}</h5>
+                                        <p class="text-muted mb-0">Errors</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% if import_stats.error_details %}
+                        <div class="mt-3">
+                            <h6 class="text-warning">Issues Found:</h6>
+                            <ul class="small">
+                                {% for error in import_stats.error_details %}
+                                <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function downloadSampleCSV() {
+    const csv = 'code,description,category\n' +
+        '22007,OIL SERVICE (FILTER) FOR 4X4,labour\n' +
+        '21044,WHEEL BALANCE ALLOY RIMS,tyre service\n' +
+        '21031,REPAIR & A/C PASSENGER,labour\n' +
+        '32004,WHEEL BALANCE TRUCK,tyre service\n' +
+        '21003,WHEEL BALANCE TRUCK,tyre service';
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'labour_codes_sample.csv';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
+// Handle manual form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const manualForm = document.querySelector('.labour-code-form');
+    if (manualForm) {
+        manualForm.addEventListener('submit', function(e) {
+            const action = e.submitter.value;
+            if (action === 'manual') {
+                const code = document.getElementById('codeInput').value.trim();
+                const description = document.getElementById('descriptionInput').value.trim();
+                const category = document.getElementById('categoryInput').value.trim();
+                
+                if (!code || !description || !category) {
+                    e.preventDefault();
+                    alert('Please fill in all required fields');
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
