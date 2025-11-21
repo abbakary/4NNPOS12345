@@ -5421,6 +5421,7 @@ def inquiry_detail(request: HttpRequest, pk: int):
 def inquiry_respond(request: HttpRequest, pk: int):
     """Respond to a customer inquiry"""
     from .utils import send_sms
+    from .models import InquiryNote
     inquiry = get_object_or_404(Order, pk=pk, type='inquiry')
 
     if request.method == 'POST':
@@ -5439,6 +5440,18 @@ def inquiry_respond(request: HttpRequest, pk: int):
             inquiry.questions = (inquiry.questions or '') + "\n\n" + trail
         else:
             inquiry.questions = trail
+
+        # Create InquiryNote entry
+        try:
+            InquiryNote.objects.create(
+                inquiry=inquiry,
+                note_type='response',
+                content=response_text,
+                created_by=request.user,
+                is_visible_to_customer=True
+            )
+        except Exception:
+            pass
 
         # Update follow-up date if required
         if follow_up_required and follow_up_date:
