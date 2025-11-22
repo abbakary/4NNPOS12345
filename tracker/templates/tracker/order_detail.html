@@ -631,31 +631,19 @@
                     <div class="col-md-4">
                       <div class="text-center">
                         <small class="text-muted d-block mb-2">Subtotal (NET)</small>
-                        <div class="fs-4 fw-bold text-primary" id="aggregatedNetAmount">
-                          {% with net=invoice.subtotal|add:order.invoice_links|total_property:"invoice.subtotal" %}
-                            {{ net|floatformat:2 }}
-                          {% endwith %}
-                        </div>
+                        <div class="fs-4 fw-bold text-primary" id="aggregatedNetAmount">-</div>
                       </div>
                     </div>
                     <div class="col-md-4">
                       <div class="text-center">
                         <small class="text-muted d-block mb-2">Tax/VAT</small>
-                        <div class="fs-4 fw-bold text-warning" id="aggregatedTaxAmount">
-                          {% with tax=invoice.tax_amount|add:order.invoice_links|total_property:"invoice.tax_amount" %}
-                            {{ tax|floatformat:2 }}
-                          {% endwith %}
-                        </div>
+                        <div class="fs-4 fw-bold text-warning" id="aggregatedTaxAmount">-</div>
                       </div>
                     </div>
                     <div class="col-md-4">
                       <div class="text-center">
                         <small class="text-muted d-block mb-2">Total Amount (GROSS)</small>
-                        <div class="fs-4 fw-bold text-success" id="aggregatedGrossAmount">
-                          {% with gross=invoice.total_amount|add:order.invoice_links|total_property:"invoice.total_amount" %}
-                            {{ gross|floatformat:2 }}
-                          {% endwith %}
-                        </div>
+                        <div class="fs-4 fw-bold text-success" id="aggregatedGrossAmount">-</div>
                       </div>
                     </div>
                   </div>
