@@ -720,6 +720,33 @@ def api_create_invoice_from_upload(request):
                 except Exception as e:
                     logger.warning(f"Failed to create or get payment record: {e}")
             
+            # Create OrderInvoiceLink if a reason is provided for additional invoice
+            invoice_link_reason = request.POST.get('invoice_link_reason', '').strip()
+            if invoice_link_reason and order:
+                try:
+                    from .models import OrderInvoiceLink
+                    # Check if this is an additional invoice (not the first one for the order)
+                    linked_invoices_count = OrderInvoiceLink.objects.filter(order=order).count()
+                    is_additional = linked_invoices_count > 0 or Order.objects.filter(
+                        id=order.id,
+                        invoices__isnull=False
+                    ).exclude(invoices__id=inv.id).exists()
+
+                    if is_additional:
+                        # Create link for additional invoice
+                        OrderInvoiceLink.objects.get_or_create(
+                            order=order,
+                            invoice=inv,
+                            defaults={
+                                'reason': invoice_link_reason,
+                                'linked_by': request.user,
+                                'is_primary': False
+                            }
+                        )
+                        logger.info(f"Linked additional invoice {inv.id} to order {order.id} with reason: {invoice_link_reason}")
+                except Exception as e:
+                    logger.warning(f"Failed to create OrderInvoiceLink for additional invoice: {e}")
+
             # Update started order with invoice data
             try:
                 order = OrderService.update_order_from_invoice(
