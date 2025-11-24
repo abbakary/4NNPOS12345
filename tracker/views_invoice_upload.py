@@ -435,25 +435,32 @@ def api_create_invoice_from_upload(request):
                 except Exception as e:
                     logger.warning(f"Failed to update customer code with extracted code_no: {e}")
 
-            # Extract plate from reference if not explicitly provided
+            # Extract plate from reference field in the invoice
             # The reference field from invoice may contain the vehicle plate number
-            if not plate:
-                reference = request.POST.get('reference', '').strip().upper()
-                if reference:
-                    # Remove 'FOR' prefix if present (common in invoices like "FOR T 290 EJF")
-                    cleaned_ref = reference
-                    if cleaned_ref.startswith('FOR '):
-                        cleaned_ref = cleaned_ref[4:].strip()
-                    elif cleaned_ref.startswith('FOR'):
-                        cleaned_ref = cleaned_ref[3:].strip()
+            # This is important for vehicle tracking - we use the actual plate from the invoice
+            extracted_plate_from_reference = None
+            reference = request.POST.get('reference', '').strip().upper()
+            if reference:
+                # Remove 'FOR' prefix if present (common in invoices like "FOR T 290 EJF")
+                cleaned_ref = reference
+                if cleaned_ref.startswith('FOR '):
+                    cleaned_ref = cleaned_ref[4:].strip()
+                elif cleaned_ref.startswith('FOR'):
+                    cleaned_ref = cleaned_ref[3:].strip()
 
-                    # Check if cleaned reference looks like a plate number
-                    # Typical format: 2-3 letters + 3-4 digits (e.g., ABC123, T123ABC)
-                    if re.match(r'^[A-Z]{1,3}\s*-?\s*\d{1,4}[A-Z]?$', cleaned_ref) or \
-                       re.match(r'^[A-Z]{1,3}\d{3,4}$', cleaned_ref) or \
-                       re.match(r'^\d{1,4}[A-Z]{2,3}$', cleaned_ref):
-                        plate = cleaned_ref.replace('-', '').replace(' ', '')
-                        logger.info(f"Extracted vehicle plate from reference field: {plate} (original: {reference})")
+                # Check if cleaned reference looks like a plate number
+                # Typical format: 2-3 letters + 3-4 digits (e.g., ABC123, T123ABC)
+                if re.match(r'^[A-Z]{1,3}\s*-?\s*\d{1,4}[A-Z]?$', cleaned_ref) or \
+                   re.match(r'^[A-Z]{1,3}\d{3,4}$', cleaned_ref) or \
+                   re.match(r'^\d{1,4}[A-Z]{2,3}$', cleaned_ref):
+                    extracted_plate = cleaned_ref.replace('-', '').replace(' ', '')
+                    extracted_plate_from_reference = extracted_plate
+                    logger.info(f"Extracted vehicle plate from reference field: {extracted_plate} (original: {reference})")
+
+                    # If no explicit plate was provided, use the extracted one
+                    if not plate:
+                        plate = extracted_plate
+                        logger.info(f"Using extracted plate from reference: {plate}")
 
             # Get or create vehicle if plate provided
             # The plate number is extracted from the invoice Reference field
@@ -775,6 +782,22 @@ def api_create_invoice_from_upload(request):
                         logger.info(f"Linked additional invoice {inv.id} to order {order.id} with reason: {invoice_link_reason}")
                 except Exception as e:
                     logger.warning(f"Failed to create OrderInvoiceLink for additional invoice: {e}")
+
+            # Update started order with extracted plate if it differs from the started order's plate
+            # This ensures vehicle tracking uses the actual plate from the invoice, not the one used to start
+            if order and extracted_plate_from_reference and customer_obj:
+                try:
+                    order = OrderService.update_order_vehicle_from_plate(
+                        order=order,
+                        new_plate_number=extracted_plate_from_reference,
+                        customer=customer_obj,
+                        make=None,
+                        model=None,
+                        vehicle_type=None
+                    )
+                    logger.info(f"Updated order {order.id} vehicle from extracted invoice reference: {extracted_plate_from_reference}")
+                except Exception as e:
+                    logger.warning(f"Failed to update order vehicle from extracted plate: {e}")
 
             # Update started order with invoice data
             try:
